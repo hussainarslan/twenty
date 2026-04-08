@@ -7,6 +7,10 @@ import {
 import { type Response } from 'express';
 
 import { HttpExceptionHandlerService } from 'src/engine/core-modules/exception-handler/http-exception-handler.service';
+import {
+  TwentyORMException,
+  TwentyORMExceptionCode,
+} from 'src/engine/twenty-orm/exceptions/twenty-orm.exception';
 import { type CustomException } from 'src/utils/custom-exception';
 import {
   type WorkflowTriggerException,
@@ -19,9 +23,26 @@ export class WorkflowTriggerRestApiExceptionFilter implements ExceptionFilter {
     private readonly httpExceptionHandlerService: HttpExceptionHandlerService,
   ) {}
 
-  catch(exception: WorkflowTriggerException, host: ArgumentsHost) {
+  catch(
+    exception: WorkflowTriggerException | TwentyORMException,
+    host: ArgumentsHost,
+  ) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+
+    if (
+      exception instanceof TwentyORMException &&
+      [
+        TwentyORMExceptionCode.WORKSPACE_NOT_FOUND,
+        TwentyORMExceptionCode.WORKSPACE_SCHEMA_NOT_FOUND,
+      ].includes(exception.code)
+    ) {
+      return this.httpExceptionHandlerService.handleError(
+        exception as unknown as CustomException,
+        response,
+        404,
+      );
+    }
 
     switch (exception.code) {
       case WorkflowTriggerExceptionCode.INVALID_INPUT:
