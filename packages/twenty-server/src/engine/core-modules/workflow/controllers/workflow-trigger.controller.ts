@@ -165,39 +165,52 @@ export class WorkflowTriggerController {
           authContext,
         ));
     } catch (error) {
-      if (
-        error instanceof TwentyORMException &&
-        [
-          TwentyORMExceptionCode.WORKSPACE_NOT_FOUND,
-          TwentyORMExceptionCode.WORKSPACE_SCHEMA_NOT_FOUND,
-        ].includes(error.code)
-      ) {
-        throw new WorkflowTriggerException(
-          `[Webhook trigger] Workspace ${workspaceId} not found`,
-          WorkflowTriggerExceptionCode.NOT_FOUND,
-        );
-      }
-
-      throw error;
+      this.throwWorkspaceNotFoundWorkflowTriggerException(error, workspaceId);
     }
 
-    const { workflowRunId } =
-      await this.workflowTriggerWorkspaceService.runWorkflowVersion({
-        workflowVersionId: workflow.lastPublishedVersionId!,
-        payload: payload || {},
-        createdBy: {
-          source: FieldActorSource.WEBHOOK,
-          workspaceMemberId: null,
-          name: 'Webhook',
-          context: {},
-        },
-        workspaceId,
-      });
+    let workflowRunId: string;
+
+    try {
+      ({ workflowRunId } =
+        await this.workflowTriggerWorkspaceService.runWorkflowVersion({
+          workflowVersionId: workflow.lastPublishedVersionId!,
+          payload: payload || {},
+          createdBy: {
+            source: FieldActorSource.WEBHOOK,
+            workspaceMemberId: null,
+            name: 'Webhook',
+            context: {},
+          },
+          workspaceId,
+        }));
+    } catch (error) {
+      this.throwWorkspaceNotFoundWorkflowTriggerException(error, workspaceId);
+    }
 
     return {
       workflowName: workflow.name,
       success: true,
       workflowRunId,
     };
+  }
+
+  private throwWorkspaceNotFoundWorkflowTriggerException(
+    error: unknown,
+    workspaceId: string,
+  ): never {
+    if (
+      error instanceof TwentyORMException &&
+      [
+        TwentyORMExceptionCode.WORKSPACE_NOT_FOUND,
+        TwentyORMExceptionCode.WORKSPACE_SCHEMA_NOT_FOUND,
+      ].includes(error.code)
+    ) {
+      throw new WorkflowTriggerException(
+        `[Webhook trigger] Workspace ${workspaceId} not found`,
+        WorkflowTriggerExceptionCode.NOT_FOUND,
+      );
+    }
+
+    throw error;
   }
 }
