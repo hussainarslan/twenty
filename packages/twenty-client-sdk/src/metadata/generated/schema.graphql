@@ -584,7 +584,7 @@ type ViewField {
   createdAt: DateTime!
   updatedAt: DateTime!
   deletedAt: DateTime
-  isOverridden: Boolean!
+  isOverridden: Boolean @deprecated(reason: "isOverridden is deprecated")
 }
 
 enum AggregateOperations {
@@ -693,7 +693,7 @@ type ViewFieldGroup {
   updatedAt: DateTime!
   deletedAt: DateTime
   viewFields: [ViewField!]!
-  isOverridden: Boolean!
+  isOverridden: Boolean! @deprecated(reason: "isOverridden is deprecated")
 }
 
 type View {
@@ -896,10 +896,11 @@ type PageLayoutWidget {
   position: PageLayoutWidgetPosition
   configuration: WidgetConfiguration!
   conditionalDisplay: JSON
+  conditionalAvailabilityExpression: String
   createdAt: DateTime!
   updatedAt: DateTime!
   deletedAt: DateTime
-  isOverridden: Boolean!
+  isOverridden: Boolean @deprecated(reason: "isOverridden is deprecated")
 }
 
 enum WidgetType {
@@ -1169,6 +1170,7 @@ type FieldConfiguration {
 """Display mode for field configuration widgets"""
 enum FieldDisplayMode {
   CARD
+  EDITOR
   FIELD
   VIEW
 }
@@ -1233,7 +1235,7 @@ type PageLayoutTab {
   createdAt: DateTime!
   updatedAt: DateTime!
   deletedAt: DateTime
-  isOverridden: Boolean!
+  isOverridden: Boolean @deprecated(reason: "isOverridden is deprecated")
 }
 
 type PageLayout {
@@ -1571,14 +1573,114 @@ enum LogicFunctionExecutionStatus {
   ERROR
 }
 
-type BillingTrialPeriod {
-  duration: Float!
-  isCreditCardRequired: Boolean!
+type FeatureFlag {
+  key: FeatureFlagKey!
+  value: Boolean!
+}
+
+enum FeatureFlagKey {
+  IS_UNIQUE_INDEXES_ENABLED
+  IS_JSON_FILTER_ENABLED
+  IS_AI_ENABLED
+  IS_COMMAND_MENU_ITEM_ENABLED
+  IS_MARKETPLACE_SETTING_TAB_VISIBLE
+  IS_RECORD_PAGE_LAYOUT_EDITING_ENABLED
+  IS_PUBLIC_DOMAIN_ENABLED
+  IS_EMAILING_DOMAIN_ENABLED
+  IS_JUNCTION_RELATIONS_ENABLED
+  IS_DRAFT_EMAIL_ENABLED
+  IS_CONNECTED_ACCOUNT_MIGRATED
+  IS_RICH_TEXT_V1_MIGRATED
+  IS_RECORD_PAGE_LAYOUT_GLOBAL_EDITION_ENABLED
+  IS_DATASOURCE_MIGRATED
 }
 
 type WorkspaceUrls {
   customUrl: String
   subdomainUrl: String!
+}
+
+type UserInfo {
+  id: UUID!
+  email: String!
+  firstName: String
+  lastName: String
+  createdAt: DateTime!
+}
+
+type WorkspaceInfo {
+  id: UUID!
+  name: String!
+  allowImpersonation: Boolean!
+  logo: String
+  totalUsers: Float!
+  activationStatus: WorkspaceActivationStatus!
+  createdAt: DateTime!
+  workspaceUrls: WorkspaceUrls!
+  users: [UserInfo!]!
+  featureFlags: [FeatureFlag!]!
+}
+
+type UserLookup {
+  user: UserInfo!
+  workspaces: [WorkspaceInfo!]!
+}
+
+type AdminPanelRecentUser {
+  id: UUID!
+  email: String!
+  firstName: String
+  lastName: String
+  createdAt: DateTime!
+  workspaceName: String
+  workspaceId: UUID
+}
+
+type AdminPanelTopWorkspace {
+  id: UUID!
+  name: String!
+  totalUsers: Int!
+  subdomain: String!
+}
+
+type AdminWorkspaceChatThread {
+  id: UUID!
+  title: String
+  totalInputTokens: Int!
+  totalOutputTokens: Int!
+  conversationSize: Int!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type AdminChatMessagePart {
+  type: String!
+  textContent: String
+  toolName: String
+}
+
+type AdminChatMessage {
+  id: UUID!
+  role: AgentMessageRole!
+  parts: [AdminChatMessagePart!]!
+  createdAt: DateTime!
+}
+
+"""Role of a message in a chat thread"""
+enum AgentMessageRole {
+  SYSTEM
+  USER
+  ASSISTANT
+}
+
+type AdminChatThreadMessages {
+  thread: AdminWorkspaceChatThread!
+  messages: [AdminChatMessage!]!
+}
+
+type BillingTrialPeriod {
+  duration: Float!
+  isCreditCardRequired: Boolean!
 }
 
 type SSOIdentityProvider {
@@ -1634,12 +1736,15 @@ type ClientAIModelConfig {
   modelFamily: ModelFamily
   modelFamilyLabel: String
   sdkPackage: String
-  inputCostPerMillionTokensInCredits: Float!
-  outputCostPerMillionTokensInCredits: Float!
+  inputCostPerMillionTokens: Float
+  outputCostPerMillionTokens: Float
   nativeCapabilities: NativeModelCapabilities
   isDeprecated: Boolean
   isRecommended: Boolean
   providerName: String
+  providerLabel: String
+  contextWindowTokens: Float
+  maxOutputTokens: Float
   dataResidency: String
 }
 
@@ -1722,25 +1827,6 @@ type PublicFeatureFlagMetadata {
 type PublicFeatureFlag {
   key: FeatureFlagKey!
   metadata: PublicFeatureFlagMetadata!
-}
-
-enum FeatureFlagKey {
-  IS_UNIQUE_INDEXES_ENABLED
-  IS_JSON_FILTER_ENABLED
-  IS_AI_ENABLED
-  IS_COMMAND_MENU_ITEM_ENABLED
-  IS_MARKETPLACE_SETTING_TAB_VISIBLE
-  IS_RECORD_PAGE_LAYOUT_EDITING_ENABLED
-  IS_PUBLIC_DOMAIN_ENABLED
-  IS_EMAILING_DOMAIN_ENABLED
-  IS_JUNCTION_RELATIONS_ENABLED
-  IS_DRAFT_EMAIL_ENABLED
-  IS_CONNECTED_ACCOUNT_MIGRATED
-  IS_USAGE_ANALYTICS_ENABLED
-  IS_RICH_TEXT_V1_MIGRATED
-  IS_RECORD_PAGE_LAYOUT_GLOBAL_EDITION_ENABLED
-  IS_RECORD_TABLE_WIDGET_ENABLED
-  IS_DATASOURCE_MIGRATED
 }
 
 type ClientConfigMaintenanceMode {
@@ -1924,34 +2010,6 @@ enum AdminPanelHealthServiceStatus {
 
 type SystemHealth {
   services: [SystemHealthService!]!
-}
-
-type FeatureFlag {
-  key: FeatureFlagKey!
-  value: Boolean!
-}
-
-type UserInfo {
-  id: UUID!
-  email: String!
-  firstName: String
-  lastName: String
-}
-
-type WorkspaceInfo {
-  id: UUID!
-  name: String!
-  allowImpersonation: Boolean!
-  logo: String
-  totalUsers: Float!
-  workspaceUrls: WorkspaceUrls!
-  users: [UserInfo!]!
-  featureFlags: [FeatureFlag!]!
-}
-
-type UserLookup {
-  user: UserInfo!
-  workspaces: [WorkspaceInfo!]!
 }
 
 type VersionInfo {
@@ -2575,7 +2633,7 @@ type CommandMenuItem {
   position: Float!
   isPinned: Boolean!
   availabilityType: CommandMenuItemAvailabilityType!
-  payload: JSON
+  payload: CommandMenuItemPayload
   hotKeys: [String!]
   conditionalAvailabilityExpression: String
   availabilityObjectMetadataId: UUID
@@ -2657,6 +2715,16 @@ enum CommandMenuItemAvailabilityType {
   GLOBAL
   RECORD_SELECTION
   FALLBACK
+}
+
+union CommandMenuItemPayload = PathCommandMenuItemPayload | ObjectMetadataCommandMenuItemPayload
+
+type PathCommandMenuItemPayload {
+  path: String!
+}
+
+type ObjectMetadataCommandMenuItemPayload {
+  objectMetadataItemId: UUID!
 }
 
 type ToolIndexEntry {
@@ -2778,6 +2846,34 @@ type ConnectedAccountDTO {
   userWorkspaceId: UUID!
   createdAt: DateTime!
   updatedAt: DateTime!
+}
+
+type PublicConnectionParametersOutput {
+  host: String!
+  port: Float!
+  username: String
+  secure: Boolean
+}
+
+type PublicImapSmtpCaldavConnectionParameters {
+  IMAP: PublicConnectionParametersOutput
+  SMTP: PublicConnectionParametersOutput
+  CALDAV: PublicConnectionParametersOutput
+}
+
+type ConnectedAccountPublicDTO {
+  id: UUID!
+  handle: String!
+  provider: String!
+  lastCredentialsRefreshedAt: DateTime
+  authFailedAt: DateTime
+  handleAliases: [String!]
+  scopes: [String!]
+  lastSignedInAt: DateTime
+  userWorkspaceId: UUID!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  connectionParameters: PublicImapSmtpCaldavConnectionParameters
 }
 
 type SendEmailOutput {
@@ -3198,6 +3294,7 @@ type Query {
   myMessageFolders(messageChannelId: UUID): [MessageFolder!]!
   myMessageChannels(connectedAccountId: UUID): [MessageChannel!]!
   myConnectedAccounts: [ConnectedAccountDTO!]!
+  connectedAccountById(id: UUID!): ConnectedAccountPublicDTO
   connectedAccounts: [ConnectedAccountDTO!]!
   myCalendarChannels(connectedAccountId: UUID): [CalendarChannel!]!
   webhooks: [Webhook!]!
@@ -3242,6 +3339,9 @@ type Query {
   getConnectedImapSmtpCaldavAccount(id: UUID!): ConnectedImapSmtpCaldavAccount!
   getAutoCompleteAddress(address: String!, token: String!, country: String, isFieldCity: Boolean): [AutocompleteResult!]!
   getAddressDetails(placeId: String!, token: String!): PlaceDetailsResult!
+  userLookupAdminPanel(userIdentifier: String!): UserLookup!
+  adminPanelRecentUsers(searchTerm: String = ""): [AdminPanelRecentUser!]!
+  adminPanelTopWorkspaces(searchTerm: String = ""): [AdminPanelTopWorkspace!]!
   getConfigVariablesGrouped: ConfigVariables!
   getSystemHealthStatus: SystemHealth!
   getIndicatorHealthStatus(indicatorId: HealthIndicatorId!): AdminPanelHealthServiceData!
@@ -3256,6 +3356,9 @@ type Query {
   getModelsDevSuggestions(providerType: String!): [ModelsDevModelSuggestion!]!
   getAdminAiUsageByWorkspace(periodStart: DateTime, periodEnd: DateTime): [UsageBreakdownItem!]!
   getMaintenanceMode: MaintenanceMode
+  workspaceLookupAdminPanel(workspaceId: UUID!): UserLookup!
+  getAdminWorkspaceChatThreads(workspaceId: UUID!): [AdminWorkspaceChatThread!]!
+  getAdminChatThreadMessages(threadId: UUID!): AdminChatThreadMessages!
   getUsageAnalytics(input: UsageAnalyticsInput): UsageAnalytics!
   getPostgresCredentials: PostgresCredentials
   findManyPublicDomains: [PublicDomain!]!
@@ -3342,6 +3445,7 @@ enum EventLogTable {
   PAGEVIEW
   OBJECT_EVENT
   USAGE_EVENT
+  APPLICATION_LOG
 }
 
 input EventLogFiltersInput {
@@ -3396,6 +3500,7 @@ type Mutation {
   updateNavigationMenuItem(input: UpdateOneNavigationMenuItemInput!): NavigationMenuItem!
   deleteManyNavigationMenuItems(ids: [UUID!]!): [NavigationMenuItem!]!
   deleteNavigationMenuItem(id: UUID!): NavigationMenuItem!
+  uploadEmailAttachmentFile(file: Upload!): FileWithSignedUrl!
   uploadAIChatFile(file: Upload!): FileWithSignedUrl!
   uploadWorkflowFile(file: Upload!): FileWithSignedUrl!
   uploadWorkspaceLogo(file: Upload!): FileWithSignedUrl!
@@ -3461,6 +3566,7 @@ type Mutation {
   destroyPageLayout(id: String!): Boolean!
   updatePageLayoutWithTabsAndWidgets(id: String!, input: UpdatePageLayoutWithTabsInput!): PageLayout!
   resetPageLayoutWidgetToDefault(id: String!): PageLayoutWidget!
+  resetPageLayoutTabToDefault(id: String!): PageLayoutTab!
   createPageLayoutWidget(input: CreatePageLayoutWidgetInput!): PageLayoutWidget!
   updatePageLayoutWidget(id: String!, input: UpdatePageLayoutWidgetInput!): PageLayoutWidget!
   destroyPageLayoutWidget(id: String!): Boolean!
@@ -3508,7 +3614,7 @@ type Mutation {
   updateWebhook(input: UpdateWebhookInput!): Webhook!
   deleteWebhook(id: UUID!): Webhook!
   createChatThread: AgentChatThread!
-  sendChatMessage(threadId: UUID!, text: String!, messageId: UUID!, browsingContext: JSON, modelId: String): SendChatMessageResult!
+  sendChatMessage(threadId: UUID!, text: String!, messageId: UUID!, browsingContext: JSON, modelId: String, fileIds: [UUID!]): SendChatMessageResult!
   stopAgentChatStream(threadId: UUID!): Boolean!
   deleteQueuedChatMessage(messageId: UUID!): Boolean!
   createSkill(input: CreateSkillInput!): Skill!
@@ -3565,10 +3671,11 @@ type Mutation {
   startChannelSync(connectedAccountId: UUID!): ChannelSyncSuccess!
   saveImapSmtpCaldavAccount(accountOwnerId: UUID!, handle: String!, connectionParameters: EmailAccountConnectionParameters!, id: UUID): ImapSmtpCaldavConnectionSuccess!
   updateLabPublicFeatureFlag(input: UpdateLabPublicFeatureFlagInput!): FeatureFlag!
-  userLookupAdminPanel(userIdentifier: String!): UserLookup!
   updateWorkspaceFeatureFlag(workspaceId: UUID!, featureFlag: String!, value: Boolean!): Boolean!
   setAdminAiModelEnabled(modelId: String!, enabled: Boolean!): Boolean!
+  setAdminAiModelsEnabled(modelIds: [String!]!, enabled: Boolean!): Boolean!
   setAdminAiModelRecommended(modelId: String!, recommended: Boolean!): Boolean!
+  setAdminAiModelsRecommended(modelIds: [String!]!, recommended: Boolean!): Boolean!
   setAdminDefaultAiModel(role: AiModelRole!, modelId: String!): Boolean!
   createDatabaseConfigVariable(key: String!, value: JSON!): Boolean!
   updateDatabaseConfigVariable(key: String!, value: JSON!): Boolean!
@@ -3965,6 +4072,7 @@ input UpdatePageLayoutWidgetWithIdInput {
   position: JSON
   configuration: JSON
   conditionalDisplay: JSON
+  conditionalAvailabilityExpression: String
 }
 
 input GridPositionInput {
@@ -3985,6 +4093,7 @@ input CreatePageLayoutWidgetInput {
 }
 
 input UpdatePageLayoutWidgetInput {
+  pageLayoutTabId: UUID
   title: String
   type: WidgetType
   objectMetadataId: UUID
@@ -3992,6 +4101,7 @@ input UpdatePageLayoutWidgetInput {
   position: JSON
   configuration: JSON
   conditionalDisplay: JSON
+  conditionalAvailabilityExpression: String
 }
 
 input CreateLogicFunctionFromSourceInput {
@@ -4541,6 +4651,12 @@ input SendEmailInput {
   subject: String!
   body: String!
   inReplyTo: String
+  files: [SendEmailAttachmentInput!]
+}
+
+input SendEmailAttachmentInput {
+  id: String!
+  name: String!
 }
 
 input EmailAccountConnectionParameters {
@@ -4607,6 +4723,7 @@ enum FileFolder {
   FilesField
   Dependencies
   Workflow
+  EmailAttachment
   AppTarball
   GeneratedSdkClient
 }

@@ -1,54 +1,75 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import { DiscoveryService } from '@nestjs/core';
 
-import { type MigrationInterface } from 'typeorm';
-
 import { type ActiveOrSuspendedWorkspaceCommandRunner } from 'src/database/commands/command-runners/active-or-suspended-workspace.command-runner';
 import { type WorkspaceCommandRunner } from 'src/database/commands/command-runners/workspace.command-runner';
-import { getRegisteredWorkspaceCommandMetadata } from 'src/engine/core-modules/upgrade/decorators/registered-workspace-command.decorator';
-import { getRegisteredInstanceCommandMetadata } from 'src/engine/core-modules/upgrade/decorators/registered-instance-command.decorator';
 import {
-  UPGRADE_COMMAND_SUPPORTED_VERSIONS,
-  type UpgradeCommandVersion,
-} from 'src/engine/constants/upgrade-command-supported-versions.constant';
+  TWENTY_ALL_VERSIONS,
+  type TwentyAllVersion,
+} from 'src/engine/core-modules/upgrade/constants/twenty-all-versions.constant';
+import { TWENTY_CROSS_UPGRADE_SUPPORTED_VERSIONS } from 'src/engine/core-modules/upgrade/constants/twenty-cross-upgrade-supported-version.constant';
+import { TWENTY_CURRENT_VERSION } from 'src/engine/core-modules/upgrade/constants/twenty-current-version.constant';
+import { TWENTY_NEXT_VERSIONS } from 'src/engine/core-modules/upgrade/constants/twenty-next-versions.constant';
+import { TWENTY_PREVIOUS_VERSIONS } from 'src/engine/core-modules/upgrade/constants/twenty-previous-versions.constant';
+import { getRegisteredInstanceCommandMetadata } from 'src/engine/core-modules/upgrade/decorators/registered-instance-command.decorator';
+import { getRegisteredWorkspaceCommandMetadata } from 'src/engine/core-modules/upgrade/decorators/registered-workspace-command.decorator';
+import { type FastInstanceCommand } from 'src/engine/core-modules/upgrade/interfaces/fast-instance-command.interface';
+import { type SlowInstanceCommand } from 'src/engine/core-modules/upgrade/interfaces/slow-instance-command.interface';
 import { isDefined } from 'twenty-shared/utils';
 
 type WorkspaceCommand =
   | WorkspaceCommandRunner
   | ActiveOrSuspendedWorkspaceCommandRunner;
 
-type RegisteredInstanceCommand = {
+export type RegisteredFastInstanceCommand = {
   name: string;
-  command: MigrationInterface;
+  command: FastInstanceCommand;
+  version: TwentyAllVersion;
   timestamp: number;
 };
 
-type RegisteredWorkspaceCommand = {
+export type RegisteredSlowInstanceCommand = {
+  name: string;
+  command: SlowInstanceCommand;
+  version: TwentyAllVersion;
+  timestamp: number;
+};
+
+export type RegisteredWorkspaceCommand = {
   name: string;
   command: WorkspaceCommand;
+  version: TwentyAllVersion;
   timestamp: number;
 };
 
-type VersionBucket = {
-  instanceCommands: RegisteredInstanceCommand[];
+type VersionBundle = {
+  fastInstanceCommands: RegisteredFastInstanceCommand[];
+  slowInstanceCommands: RegisteredSlowInstanceCommand[];
   workspaceCommands: RegisteredWorkspaceCommand[];
 };
+
+const buildEmptyVersionBundle = (): VersionBundle => ({
+  fastInstanceCommands: [],
+  slowInstanceCommands: [],
+  workspaceCommands: [],
+});
 
 @Injectable()
 export class UpgradeCommandRegistryService implements OnModuleInit {
   private readonly logger = new Logger(UpgradeCommandRegistryService.name);
 
-  private readonly bucketsByVersion = new Map<
-    UpgradeCommandVersion,
-    VersionBucket
+  private readonly bundlesByVersion = new Map<
+    TwentyAllVersion,
+    VersionBundle
   >();
 
   constructor(private readonly discoveryService: DiscoveryService) {}
 
   onModuleInit(): void {
-    for (const version of UPGRADE_COMMAND_SUPPORTED_VERSIONS) {
-      this.bucketsByVersion.set(version, {
-        instanceCommands: [],
+    for (const version of TWENTY_ALL_VERSIONS) {
+      this.bundlesByVersion.set(version, {
+        fastInstanceCommands: [],
+        slowInstanceCommands: [],
         workspaceCommands: [],
       });
     }
@@ -66,19 +87,33 @@ export class UpgradeCommandRegistryService implements OnModuleInit {
         getRegisteredInstanceCommandMetadata(metatype);
 
       if (isDefined(instanceCommandMetadata)) {
-        const bucket = this.bucketsByVersion.get(
+        const bundle = this.bundlesByVersion.get(
           instanceCommandMetadata.version,
         );
 
-        if (isDefined(bucket)) {
-          bucket.instanceCommands.push({
-            name: this.computeCommandName(
-              instanceCommandMetadata.version,
-              (instance as MigrationInterface).constructor.name,
-              instanceCommandMetadata.timestamp,
-            ),
-            command: instance as MigrationInterface,
-            timestamp: instanceCommandMetadata.timestamp,
+        if (!isDefined(bundle)) {
+          continue;
+        }
+
+        const entry = {
+          name: this.computeCommandName(
+            instanceCommandMetadata.version,
+            (instance as FastInstanceCommand).constructor.name,
+            instanceCommandMetadata.timestamp,
+          ),
+          version: instanceCommandMetadata.version,
+          timestamp: instanceCommandMetadata.timestamp,
+        };
+
+        if (instanceCommandMetadata.type === 'slow') {
+          bundle.slowInstanceCommands.push({
+            ...entry,
+            command: instance as SlowInstanceCommand,
+          });
+        } else {
+          bundle.fastInstanceCommands.push({
+            ...entry,
+            command: instance as FastInstanceCommand,
           });
         }
 
@@ -89,87 +124,84 @@ export class UpgradeCommandRegistryService implements OnModuleInit {
         getRegisteredWorkspaceCommandMetadata(metatype);
 
       if (isDefined(workspaceCommandMetadata)) {
-        const bucket = this.bucketsByVersion.get(
+        const bundle = this.bundlesByVersion.get(
           workspaceCommandMetadata.version,
         );
 
-        if (isDefined(bucket)) {
-          bucket.workspaceCommands.push({
-            name: this.computeCommandName(
-              workspaceCommandMetadata.version,
-              (instance as WorkspaceCommand).constructor.name,
-              workspaceCommandMetadata.timestamp,
-            ),
-            command: instance as WorkspaceCommand,
-            timestamp: workspaceCommandMetadata.timestamp,
-          });
+        if (!isDefined(bundle)) {
+          continue;
         }
+
+        bundle.workspaceCommands.push({
+          name: this.computeCommandName(
+            workspaceCommandMetadata.version,
+            (instance as WorkspaceCommand).constructor.name,
+            workspaceCommandMetadata.timestamp,
+          ),
+          command: instance as WorkspaceCommand,
+          version: workspaceCommandMetadata.version,
+          timestamp: workspaceCommandMetadata.timestamp,
+        });
       }
     }
 
-    for (const [, bucket] of this.bucketsByVersion) {
-      bucket.instanceCommands.sort(
+    for (const [, bundle] of this.bundlesByVersion) {
+      bundle.fastInstanceCommands.sort(
         (entryA, entryB) => entryA.timestamp - entryB.timestamp,
       );
-      bucket.workspaceCommands.sort(
+      bundle.slowInstanceCommands.sort(
+        (entryA, entryB) => entryA.timestamp - entryB.timestamp,
+      );
+      bundle.workspaceCommands.sort(
         (entryA, entryB) => entryA.timestamp - entryB.timestamp,
       );
     }
 
+    this.validateNoVersionDuplicatesAcrossConstants();
+    this.validatePreviousVersionsNotEmpty();
     this.validateNoDuplicates();
+    this.validateAtLeastOneVersionBundleHasWorkspaceCommands();
 
-    for (const [version, bucket] of this.bucketsByVersion) {
+    for (const [version, bundle] of this.bundlesByVersion) {
       const totalCount =
-        bucket.instanceCommands.length + bucket.workspaceCommands.length;
+        bundle.fastInstanceCommands.length +
+        bundle.slowInstanceCommands.length +
+        bundle.workspaceCommands.length;
 
       if (totalCount > 0) {
         this.logger.log(
-          `Registered ${bucket.instanceCommands.length} instance command(s) and ${bucket.workspaceCommands.length} workspace command(s) for ${version}`,
+          `Registered ${bundle.fastInstanceCommands.length} fast instance, ${bundle.slowInstanceCommands.length} slow instance, and ${bundle.workspaceCommands.length} workspace command(s) for ${version}`,
         );
       }
     }
   }
 
-  getInstanceCommandsForVersion(
-    version: UpgradeCommandVersion,
-  ): MigrationInterface[] {
-    return (
-      this.bucketsByVersion
-        .get(version)
-        ?.instanceCommands.map((entry) => entry.command) ?? []
+  getBundleForVersion(version: TwentyAllVersion): VersionBundle {
+    return this.bundlesByVersion.get(version) ?? buildEmptyVersionBundle();
+  }
+
+  getLastWorkspaceCommandForVersion(
+    version: TwentyAllVersion,
+  ): RegisteredWorkspaceCommand | undefined {
+    const bundle = this.getBundleForVersion(version);
+
+    return bundle.workspaceCommands[bundle.workspaceCommands.length - 1];
+  }
+
+  getCrossUpgradeSupportedFastInstanceCommands(): RegisteredFastInstanceCommand[] {
+    return TWENTY_CROSS_UPGRADE_SUPPORTED_VERSIONS.flatMap(
+      (version) => this.getBundleForVersion(version).fastInstanceCommands,
     );
   }
 
-  getWorkspaceCommandsForVersion(
-    version: UpgradeCommandVersion,
-  ): WorkspaceCommand[] {
-    return (
-      this.bucketsByVersion
-        .get(version)
-        ?.workspaceCommands.map((entry) => entry.command) ?? []
+  getCrossUpgradeSupportedSlowInstanceCommands(): RegisteredSlowInstanceCommand[] {
+    return TWENTY_CROSS_UPGRADE_SUPPORTED_VERSIONS.flatMap(
+      (version) => this.getBundleForVersion(version).slowInstanceCommands,
     );
-  }
-
-  getAllInstanceCommands(): {
-    version: UpgradeCommandVersion;
-    migration: MigrationInterface;
-  }[] {
-    const result: {
-      version: UpgradeCommandVersion;
-      migration: MigrationInterface;
-    }[] = [];
-
-    for (const version of UPGRADE_COMMAND_SUPPORTED_VERSIONS) {
-      for (const command of this.getInstanceCommandsForVersion(version)) {
-        result.push({ version, migration: command });
-      }
-    }
-
-    return result;
   }
 
   private computeCommandName(
-    version: UpgradeCommandVersion,
+    version: TwentyAllVersion,
     className: string,
     timestamp: number,
   ): string {
@@ -177,23 +209,29 @@ export class UpgradeCommandRegistryService implements OnModuleInit {
   }
 
   private validateNoDuplicates(): void {
-    for (const [version, bucket] of this.bucketsByVersion) {
+    for (const [version, bundle] of this.bundlesByVersion) {
       this.validateNoTimestampDuplicatesWithinKind(
         version,
-        'instance',
-        bucket.instanceCommands,
+        'fast-instance',
+        bundle.fastInstanceCommands,
+      );
+      this.validateNoTimestampDuplicatesWithinKind(
+        version,
+        'slow-instance',
+        bundle.slowInstanceCommands,
       );
       this.validateNoTimestampDuplicatesWithinKind(
         version,
         'workspace',
-        bucket.workspaceCommands,
+        bundle.workspaceCommands,
       );
 
       const seenNames = new Set<string>();
 
       const allNames = [
-        ...bucket.instanceCommands.map((entry) => entry.name),
-        ...bucket.workspaceCommands.map((entry) => entry.name),
+        ...bundle.fastInstanceCommands.map((entry) => entry.name),
+        ...bundle.slowInstanceCommands.map((entry) => entry.name),
+        ...bundle.workspaceCommands.map((entry) => entry.name),
       ];
 
       for (const name of allNames) {
@@ -208,10 +246,48 @@ export class UpgradeCommandRegistryService implements OnModuleInit {
     }
   }
 
+  private validateAtLeastOneVersionBundleHasWorkspaceCommands(): void {
+    let totalCommandCount = 0;
+    let hasWorkspaceCommands = false;
+
+    for (const version of TWENTY_CROSS_UPGRADE_SUPPORTED_VERSIONS) {
+      const bundle = this.getBundleForVersion(version);
+
+      totalCommandCount +=
+        bundle.fastInstanceCommands.length +
+        bundle.slowInstanceCommands.length +
+        bundle.workspaceCommands.length;
+
+      if (bundle.workspaceCommands.length > 0) {
+        hasWorkspaceCommands = true;
+      }
+    }
+
+    // UpgradeModule is loaded in the worker transitively via WorkspaceModule,
+    // but no command modules are imported — zero providers are discovered.
+    // TODO: split WorkspaceModule so the worker doesn't pull in UpgradeModule
+    if (totalCommandCount === 0) {
+      this.logger.warn(
+        'No upgrade commands discovered — skipping workspace command validation',
+      );
+
+      return;
+    }
+
+    if (!hasWorkspaceCommands) {
+      throw new Error(
+        'Upgrade sequence must contain at least one workspace command',
+      );
+    }
+  }
+
   private validateNoTimestampDuplicatesWithinKind(
-    version: UpgradeCommandVersion,
-    kind: 'instance' | 'workspace',
-    entries: RegisteredInstanceCommand[] | RegisteredWorkspaceCommand[],
+    version: TwentyAllVersion,
+    kind: 'fast-instance' | 'slow-instance' | 'workspace',
+    entries:
+      | RegisteredFastInstanceCommand[]
+      | RegisteredSlowInstanceCommand[]
+      | RegisteredWorkspaceCommand[],
   ): void {
     const seenTimestamps = new Set<number>();
 
@@ -223,6 +299,34 @@ export class UpgradeCommandRegistryService implements OnModuleInit {
       }
 
       seenTimestamps.add(entry.timestamp);
+    }
+  }
+
+  private validateNoVersionDuplicatesAcrossConstants(): void {
+    const allVersions = [
+      ...TWENTY_PREVIOUS_VERSIONS,
+      TWENTY_CURRENT_VERSION,
+      ...TWENTY_NEXT_VERSIONS,
+    ];
+
+    const uniqueVersions = new Set(allVersions);
+
+    if (uniqueVersions.size !== allVersions.length) {
+      const duplicates = allVersions.filter(
+        (version, index) => allVersions.indexOf(version) !== index,
+      );
+
+      throw new Error(
+        `Duplicate version(s) across TWENTY_PREVIOUS_VERSIONS, TWENTY_CURRENT_VERSION, and TWENTY_NEXT_VERSIONS: ${duplicates.join(', ')}`,
+      );
+    }
+  }
+
+  private validatePreviousVersionsNotEmpty(): void {
+    if ((TWENTY_PREVIOUS_VERSIONS as readonly string[]).length === 0) {
+      throw new Error(
+        'TWENTY_PREVIOUS_VERSIONS must contain at least one version before TWENTY_CURRENT_VERSION',
+      );
     }
   }
 }

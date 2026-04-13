@@ -38,6 +38,12 @@ export class UpgradeMigrationEntity {
   @Column({ type: 'varchar', nullable: false })
   executedByVersion: string;
 
+  @Column({ type: 'text', nullable: true })
+  errorMessage: string | null;
+
+  @Column({ type: 'boolean', nullable: false, default: false })
+  isInitial: boolean;
+
   @ManyToOne(() => WorkspaceEntity, { onDelete: 'CASCADE', nullable: true })
   @JoinColumn({ name: 'workspaceId' })
   workspace: Relation<WorkspaceEntity> | null;

@@ -1,10 +1,15 @@
+'use client';
+
 import { Body, Heading, IconButton } from '@/design-system/components';
 import { ArrowRightIcon } from '@/icons';
+import { THREE_CARDS_ILLUSTRATIONS } from '@/illustrations';
 import type { ThreeCardsIllustrationCardType } from '@/sections/ThreeCards/types';
 import { theme } from '@/theme';
 import { styled } from '@linaria/react';
-import { IllustrationCardVisual } from './IllustrationCardVisual';
 import { ThreeCardsCardShape } from './CardShape';
+
+const CARD_OUTLINE_COLOR = theme.colors.primary.border[20];
+const CARD_DIVIDER_COLOR = theme.colors.primary.border[40];
 
 const IllustrationCardContainer = styled.div`
   position: relative;
@@ -23,7 +28,7 @@ const IllustrationCardContainer = styled.div`
 
 const CardRule = styled.div`
   height: 0;
-  border-top: 1px dotted ${theme.colors.primary.border[20]};
+  border-top: 1px dotted ${CARD_DIVIDER_COLOR};
   width: 100%;
 `;
 
@@ -38,27 +43,31 @@ const CardEmbed = styled.div`
 `;
 
 const CardFooter = styled.footer`
-  display: grid;
-  grid-template-columns: auto auto auto 1fr;
   align-items: start;
   column-gap: ${theme.spacing(2)};
-`;
-
-const AttributionPipe = styled.span`
-  display: block;
-  width: 0;
-  height: 21px;
-  border-left: 1px solid ${theme.colors.primary.border[20]};
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
 `;
 
 const FooterTrailingAction = styled.div`
   justify-self: end;
 `;
 
+const AttributionPipe = styled.span`
+  display: block;
+  width: 0;
+  height: 21px;
+  border-left: 1px solid ${CARD_DIVIDER_COLOR};
+`;
+
 const CardBodyCell = styled.div`
   align-self: start;
   min-height: 0;
   min-width: 0;
+`;
+
+const CardBody = styled(Body)`
+  color: ${theme.colors.primary.text[80]};
 `;
 
 type IllustrationCardProps = {
@@ -70,12 +79,15 @@ export function IllustrationCard({
   illustrationCard,
   variant = 'shaped',
 }: IllustrationCardProps) {
+  const ThreeCardsIllustration =
+    THREE_CARDS_ILLUSTRATIONS[illustrationCard.illustration];
+
   return (
     <IllustrationCardContainer>
       {variant === 'shaped' && (
         <ThreeCardsCardShape
           fillColor={theme.colors.primary.background[100]}
-          strokeColor={theme.colors.primary.border[40]}
+          strokeColor={CARD_OUTLINE_COLOR}
         />
       )}
       <Heading
@@ -86,14 +98,11 @@ export function IllustrationCard({
       />
       <CardRule />
       <CardEmbed>
-        <IllustrationCardVisual
-          src={illustrationCard.illustration.src}
-          title={illustrationCard.illustration.title}
-        />
+        <ThreeCardsIllustration />
       </CardEmbed>
       <CardRule />
       <CardBodyCell>
-        <Body body={illustrationCard.body} size="sm" weight="regular" />
+        <CardBody body={illustrationCard.body} size="sm" weight="regular" />
       </CardBodyCell>
 
       {illustrationCard.attribution && (
@@ -109,17 +118,20 @@ export function IllustrationCard({
             size="xs"
             weight="regular"
           />
-          <FooterTrailingAction>
-            <IconButton
-              icon={ArrowRightIcon}
-              ariaLabel="Learn more"
-              borderColor={theme.colors.primary.border[20]}
-              iconFillColor="transparent"
-              iconSize={24}
-              iconStrokeColor={theme.colors.primary.text[80]}
-              size={48}
-            />
-          </FooterTrailingAction>
+          {illustrationCard.caseStudySlug !== undefined ? (
+            <FooterTrailingAction>
+              <IconButton
+                ariaLabel="Read case study"
+                borderColor={CARD_OUTLINE_COLOR}
+                href={`/case-studies/${illustrationCard.caseStudySlug}`}
+                icon={ArrowRightIcon}
+                iconFillColor="transparent"
+                iconSize={24}
+                iconStrokeColor={theme.colors.primary.text[80]}
+                size={48}
+              />
+            </FooterTrailingAction>
+          ) : null}
         </CardFooter>
       )}
     </IllustrationCardContainer>

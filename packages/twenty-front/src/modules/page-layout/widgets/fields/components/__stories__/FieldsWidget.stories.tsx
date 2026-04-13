@@ -147,7 +147,6 @@ const createPageLayoutWithWidget = (
       position: 0,
       pageLayoutId: PAGE_LAYOUT_TEST_INSTANCE_ID,
       widgets: [widget],
-      isOverridden: false,
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z',
       deletedAt: null,
@@ -177,7 +176,6 @@ const createFieldsWidget = (viewId: string | null): PageLayoutWidget => ({
     configurationType: WidgetConfigurationType.FIELDS,
     viewId,
   },
-  isOverridden: false,
   createdAt: '2024-01-01T00:00:00Z',
   updatedAt: '2024-01-01T00:00:00Z',
   deletedAt: null,
@@ -217,7 +215,6 @@ const createViewField = (
   isVisible: true,
   size: 200,
   aggregateOperation: null,
-  isOverridden: false,
   viewId: FIELDS_VIEW_ID,
   ...(viewFieldGroupId !== undefined && { viewFieldGroupId }),
 });
@@ -233,7 +230,6 @@ const createViewFieldGroup = (
   name,
   position,
   isVisible,
-  isOverridden: false,
   viewId: FIELDS_VIEW_ID,
   viewFields,
 });
@@ -372,15 +368,9 @@ export const WithViewFieldGroups: Story = {
   },
 };
 
-export const WithInlineViewFields: Story = {
+export const WithDefaultGroups: Story = {
   render: () => {
-    const view = createView({
-      viewFields: [
-        createViewField('vf-name', nameField.id, 0),
-        createViewField('vf-employees', employeesField.id, 1),
-        createViewField('vf-address', addressField.id, 2),
-      ],
-    });
+    const view = createView();
 
     const widget = createFieldsWidget(FIELDS_VIEW_ID);
 
@@ -447,14 +437,12 @@ export const WithInlineViewFields: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    const companyName = await canvas.findByText('Acme Corporation');
-    expect(companyName).toBeVisible();
+    const generalHeader = await canvas.findByText('General');
+    expect(generalHeader).toBeVisible();
 
-    const contactInfoHeader = canvas.queryByText('Contact Info');
-    expect(contactInfoHeader).toBeNull();
-
-    const generalHeader = canvas.queryByText('General');
-    expect(generalHeader).toBeNull();
+    const creationDateElements = await canvas.findAllByText('Creation date');
+    expect(creationDateElements.length).toBeGreaterThan(0);
+    expect(creationDateElements[0]).toBeVisible();
   },
 };
 
