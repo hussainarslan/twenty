@@ -95,10 +95,8 @@ export class WorkflowTriggerController {
 
     const authContext = buildSystemAuthContext(workspaceId);
 
-    let workflow: WorkflowWorkspaceEntity;
-
     try {
-      ({ workflow } =
+      const { workflow } =
         await this.globalWorkspaceOrmManager.executeInWorkspaceContext(
           async () => {
             const workflowRepository =
@@ -163,15 +161,9 @@ export class WorkflowTriggerController {
             return { workflow, workflowVersion };
           },
           authContext,
-        ));
-    } catch (error) {
-      this.throwWorkspaceNotFoundWorkflowTriggerException(error, workspaceId);
-    }
+        );
 
-    let workflowRunId: string;
-
-    try {
-      ({ workflowRunId } =
+      const { workflowRunId } =
         await this.workflowTriggerWorkspaceService.runWorkflowVersion({
           workflowVersionId: workflow.lastPublishedVersionId!,
           payload: payload || {},
@@ -182,19 +174,19 @@ export class WorkflowTriggerController {
             context: {},
           },
           workspaceId,
-        }));
-    } catch (error) {
-      this.throwWorkspaceNotFoundWorkflowTriggerException(error, workspaceId);
-    }
+        });
 
-    return {
-      workflowName: workflow.name,
-      success: true,
-      workflowRunId,
-    };
+      return {
+        workflowName: workflow.name,
+        success: true,
+        workflowRunId,
+      };
+    } catch (error) {
+      this.rethrowWorkspaceNotFoundAsTriggerException(error, workspaceId);
+    }
   }
 
-  private throwWorkspaceNotFoundWorkflowTriggerException(
+  private rethrowWorkspaceNotFoundAsTriggerException(
     error: unknown,
     workspaceId: string,
   ): never {
